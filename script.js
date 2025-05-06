@@ -1,404 +1,481 @@
-// Global variables
-let currentFilename = "Untitled.txt";
-let isFileSaved = true;
-let lastSavedContent = "";
-let wordWrapEnabled = false;
-let searchIndex = -1;
-let searchMatches = [];
-let isReplaceMode = false;
-
 // DOM Elements
 const editor = document.getElementById('editor');
-const currentFileElement = document.getElementById('current-file');
-const statusElement = document.getElementById('status');
-const cursorPositionElement = document.getElementById('cursor-position');
-const saveModal = document.getElementById('save-modal');
-const openModal = document.getElementById('open-modal');
-const filenameInput = document.getElementById('filename-input');
-const searchDialog = document.getElementById('search-dialog');
-const findText = document.getElementById('find-text');
-const replaceText = document.getElementById('replace-text');
-const replaceRow = document.getElementById('replace-row');
+const fileMenu = document.getElementById('file-menu');
+const fileSubmenu = document.getElementById('file-submenu');
+const editMenu = document.getElementById('edit-menu');
+const editSubmenu = document.getElementById('edit-submenu');
+const viewMenu = document.getElementById('view-menu');
+const viewSubmenu = document.getElementById('view-submenu');
+const fileStatus = document.getElementById('file-status');
+const positionStatus = document.getElementById('position-status');
+const saveDialogOverlay = document.getElementById('save-dialog-overlay');
+const saveFilename = document.getElementById('save-filename');
+const saveCancel = document.getElementById('save-cancel');
+const saveConfirm = document.getElementById('save-confirm');
+const findReplaceDialogOverlay = document.getElementById('find-replace-dialog-overlay');
+const findInput = document.getElementById('find-input');
+const replaceInput = document.getElementById('replace-input');
+const findReplaceCancel = document.getElementById('find-replace-cancel');
+const findNext = document.getElementById('find-next');
 const replaceBtn = document.getElementById('replace-btn');
-const replaceAllBtn = document.getElementById('replace-all');
+const replaceAll = document.getElementById('replace-all');
+const findReplaceTitle = document.getElementById('find-replace-title');
+const replaceRow = document.getElementById('replace-row');
 
-// Menu functionality
-document.querySelectorAll('.menu-item').forEach(item => {
-    item.addEventListener('click', function () {
-        this.classList.toggle('active');
-        // Close other menus
-        document.querySelectorAll('.menu-item').forEach(otherItem => {
-            if (otherItem !== this) {
-                otherItem.classList.remove('active');
-            }
-        });
-    });
+// Variables
+let currentFilename = null;
+let isContentModified = false;
+let findIndex = -1;
+
+// Init
+window.addEventListener('DOMContentLoaded', () => {
+    editor.focus();
+    updatePositionStatus();
 });
 
-// Close menus when clicking outside
-document.addEventListener('click', function (event) {
-    if (!event.target.closest('.menu-item')) {
-        document.querySelectorAll('.menu-item').forEach(item => {
-            item.classList.remove('active');
-        });
+// Menu handlers
+document.addEventListener('click', (e) => {
+    if (e.target !== fileMenu && !fileSubmenu.contains(e.target)) {
+        fileSubmenu.classList.remove('active');
+    }
+    if (e.target !== editMenu && !editSubmenu.contains(e.target)) {
+        editSubmenu.classList.remove('active');
+    }
+    if (e.target !== viewMenu && !viewSubmenu.contains(e.target)) {
+        viewSubmenu.classList.remove('active');
     }
 });
 
-// Track changes and update status
-editor.addEventListener('input', function () {
-    if (editor.value !== lastSavedContent) {
-        isFileSaved = false;
-        currentFileElement.textContent = `${currentFilename} *`;
-        statusElement.textContent = 'Modified';
-    } else {
-        isFileSaved = true;
-        currentFileElement.textContent = currentFilename;
-        statusElement.textContent = 'Ready';
-    }
+fileMenu.addEventListener('click', () => {
+    toggleSubmenu(fileSubmenu);
+    editSubmenu.classList.remove('active');
+    viewSubmenu.classList.remove('active');
 });
 
-// Track cursor position
-editor.addEventListener('click', updateCursorPosition);
-editor.addEventListener('keyup', updateCursorPosition);
+editMenu.addEventListener('click', () => {
+    toggleSubmenu(editSubmenu);
+    fileSubmenu.classList.remove('active');
+    viewSubmenu.classList.remove('active');
+});
 
-function updateCursorPosition() {
-    const text = editor.value.substring(0, editor.selectionStart);
-    const lines = text.split('\n');
-    const lineCount = lines.length;
-    const charCount = lines[lines.length - 1].length + 1;
-    cursorPositionElement.textContent = `Ln ${lineCount}, Col ${charCount}`;
+viewMenu.addEventListener('click', () => {
+    toggleSubmenu(viewSubmenu);
+    fileSubmenu.classList.remove('active');
+    editSubmenu.classList.remove('active');
+});
+
+function toggleSubmenu(submenu) {
+    submenu.classList.toggle('active');
 }
 
-// File Menu Functions
-document.getElementById('new-file').addEventListener('click', function () {
-    checkSaveBeforeAction(() => {
-        editor.value = '';
-        currentFilename = 'Untitled.txt';
-        currentFileElement.textContent = currentFilename;
-        lastSavedContent = '';
-        isFileSaved = true;
-        statusElement.textContent = 'Ready';
+// File Menu Items
+document.getElementById('new-file').addEventListener('click', () => {
+    confirmDiscardChanges(() => {
+        editor.innerHTML = '';
+        currentFilename = null;
+        fileStatus.textContent = 'Untitled';
+        isContentModified = false;
+        closeAllMenus();
     });
 });
 
-document.getElementById('open-file').addEventListener('click', function () {
-    checkSaveBeforeAction(() => {
-        document.getElementById('file-input').value = '';
-        openModal.style.display = 'flex';
+document.getElementById('open-file').addEventListener('click', () => {
+    confirmDiscardChanges(() => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.txt';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    editor.innerText = e.target.result;
+                    currentFilename = file.name;
+                    fileStatus.textContent = currentFilename;
+                    isContentModified = false;
+                };
+                reader.readAsText(file);
+            }
+        };
+        input.click();
+        closeAllMenus();
     });
 });
 
-document.getElementById('save-file').addEventListener('click', function () {
-    if (currentFilename === 'Untitled.txt') {
-        saveModal.style.display = 'flex';
-        filenameInput.value = currentFilename;
-    } else {
+document.getElementById('save-file').addEventListener('click', () => {
+    if (currentFilename) {
         saveFile(currentFilename);
-    }
-});
-
-document.getElementById('save-as').addEventListener('click', function () {
-    saveModal.style.display = 'flex';
-    filenameInput.value = currentFilename;
-});
-
-document.getElementById('exit').addEventListener('click', function () {
-    checkSaveBeforeAction(() => {
-        window.close();
-        // If window.close() doesn't work (which is likely in a web app)
-        alert("The application cannot close the browser tab. You can manually close it.");
-    });
-});
-
-// Edit Menu Functions
-document.getElementById('cut').addEventListener('click', function () {
-    document.execCommand('cut');
-});
-
-document.getElementById('copy').addEventListener('click', function () {
-    document.execCommand('copy');
-});
-
-document.getElementById('paste').addEventListener('click', function () {
-    document.execCommand('paste');
-});
-
-document.getElementById('find').addEventListener('click', function () {
-    isReplaceMode = false;
-    searchDialog.style.display = 'block';
-    replaceRow.style.display = 'none';
-    replaceBtn.classList.add('hidden');
-    replaceAllBtn.classList.add('hidden');
-    findText.focus();
-});
-
-document.getElementById('replace').addEventListener('click', function () {
-    isReplaceMode = true;
-    searchDialog.style.display = 'block';
-    replaceRow.style.display = 'flex';
-    replaceBtn.classList.remove('hidden');
-    replaceAllBtn.classList.remove('hidden');
-    findText.focus();
-});
-
-document.getElementById('select-all').addEventListener('click', function () {
-    editor.select();
-});
-
-// View Menu Functions
-document.getElementById('fullscreen').addEventListener('click', function () {
-    if (document.fullscreenElement) {
-        document.exitFullscreen();
     } else {
-        document.documentElement.requestFullscreen();
+        showSaveDialog();
     }
+    closeAllMenus();
 });
 
-document.getElementById('word-wrap').addEventListener('click', function () {
-    wordWrapEnabled = !wordWrapEnabled;
-    editor.style.whiteSpace = wordWrapEnabled ? 'pre-wrap' : 'pre';
+document.getElementById('save-as').addEventListener('click', () => {
+    showSaveDialog();
+    closeAllMenus();
 });
 
-// Save Modal Functions
-document.getElementById('save-cancel').addEventListener('click', function () {
-    saveModal.style.display = 'none';
+document.getElementById('exit').addEventListener('click', () => {
+    confirmDiscardChanges(() => {
+        window.close();
+    });
+    closeAllMenus();
 });
 
-document.getElementById('save-confirm').addEventListener('click', function () {
-    let filename = filenameInput.value.trim();
-    if (!filename) {
-        alert('Please enter a filename.');
-        return;
-    }
+// Edit Menu Items
+document.getElementById('undo').addEventListener('click', () => {
+    document.execCommand('undo');
+    closeAllMenus();
+});
 
-    // Add .txt extension if not present
-    if (!filename.toLowerCase().endsWith('.txt')) {
+document.getElementById('redo').addEventListener('click', () => {
+    document.execCommand('redo');
+    closeAllMenus();
+});
+
+document.getElementById('cut').addEventListener('click', () => {
+    document.execCommand('cut');
+    closeAllMenus();
+});
+
+document.getElementById('copy').addEventListener('click', () => {
+    document.execCommand('copy');
+    closeAllMenus();
+});
+
+document.getElementById('paste').addEventListener('click', () => {
+    document.execCommand('paste');
+    closeAllMenus();
+});
+
+document.getElementById('bold').addEventListener('click', () => {
+    applyFormatting('bold');
+    closeAllMenus();
+});
+
+document.getElementById('italic').addEventListener('click', () => {
+    applyFormatting('italic');
+    closeAllMenus();
+});
+
+document.getElementById('underline').addEventListener('click', () => {
+    applyFormatting('underline');
+    closeAllMenus();
+});
+
+document.getElementById('find').addEventListener('click', () => {
+    showFindDialog(false);
+    closeAllMenus();
+});
+
+document.getElementById('replace').addEventListener('click', () => {
+    showFindDialog(true);
+    closeAllMenus();
+});
+
+document.getElementById('select-all').addEventListener('click', () => {
+    editor.select();
+    closeAllMenus();
+});
+
+// View Menu Items
+document.getElementById('toggle-fullscreen').addEventListener('click', () => {
+    toggleFullscreen();
+    closeAllMenus();
+});
+
+document.getElementById('toggle-theme').addEventListener('click', () => {
+    document.body.classList.toggle('light-theme');
+    closeAllMenus();
+});
+
+// Save Dialog
+function showSaveDialog() {
+    saveFilename.value = currentFilename || 'untitled.txt';
+    saveDialogOverlay.classList.add('active');
+    setTimeout(() => saveFilename.focus(), 100);
+}
+
+saveCancel.addEventListener('click', () => {
+    saveDialogOverlay.classList.remove('active');
+});
+
+saveConfirm.addEventListener('click', () => {
+    let filename = saveFilename.value.trim();
+    if (!filename.endsWith('.txt')) {
         filename += '.txt';
     }
-
     saveFile(filename);
-    saveModal.style.display = 'none';
+    saveDialogOverlay.classList.remove('active');
 });
 
-// Open Modal Functions
-document.getElementById('open-cancel').addEventListener('click', function () {
-    openModal.style.display = 'none';
+// Find and Replace Dialog
+function showFindDialog(withReplace) {
+    findReplaceTitle.textContent = withReplace ? 'Find and Replace' : 'Find';
+    replaceRow.style.display = withReplace ? 'flex' : 'none';
+    replaceBtn.style.display = withReplace ? 'block' : 'none';
+    replaceAll.style.display = withReplace ? 'block' : 'none';
+
+    findIndex = -1;
+    findReplaceDialogOverlay.classList.add('active');
+    setTimeout(() => findInput.focus(), 100);
+}
+
+findReplaceCancel.addEventListener('click', () => {
+    findReplaceDialogOverlay.classList.remove('active');
 });
 
-document.getElementById('open-confirm').addEventListener('click', function () {
-    const fileInput = document.getElementById('file-input');
-    if (fileInput.files.length === 0) {
-        alert('Please select a file.');
-        return;
+findNext.addEventListener('click', () => {
+    const searchText = findInput.value;
+    if (!searchText) return;
+
+    // For contenteditable, we need to use the window.find() method
+    // or implement our own search using DOM traversal
+    const found = window.find(searchText);
+
+    if (!found) {
+        alert('No more matches found.');
     }
-
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-
-    reader.onload = function (e) {
-        editor.value = e.target.result;
-        currentFilename = file.name;
-        currentFileElement.textContent = currentFilename;
-        lastSavedContent = editor.value;
-        isFileSaved = true;
-        statusElement.textContent = 'Ready';
-    };
-
-    reader.readAsText(file);
-    openModal.style.display = 'none';
 });
 
-// Search Functions
-document.getElementById('find-next').addEventListener('click', findNext);
-document.getElementById('replace-btn').addEventListener('click', replaceCurrent);
-document.getElementById('replace-all').addEventListener('click', replaceAll);
-document.getElementById('close-search').addEventListener('click', function () {
-    searchDialog.style.display = 'none';
-    searchIndex = -1;
-    searchMatches = [];
-});
+replaceBtn.addEventListener('click', () => {
+    const searchText = findInput.value;
+    const replaceText = replaceInput.value;
 
-function findNext() {
-    const searchTerm = findText.value;
-    if (!searchTerm) return;
-
-    // If we're starting a new search
-    if (searchIndex === -1 || editor.value !== lastSearchText) {
-        searchMatches = [];
-        lastSearchText = editor.value;
-        let startIndex = 0;
-        while (true) {
-            const index = editor.value.indexOf(searchTerm, startIndex);
-            if (index === -1) break;
-            searchMatches.push(index);
-            startIndex = index + 1;
+    // For contenteditable replacement
+    if (window.getSelection) {
+        const selection = window.getSelection();
+        if (selection.toString() === searchText) {
+            // We have the text selected, so replace it
+            document.execCommand('insertText', false, replaceText);
+            isContentModified = true;
+        } else {
+            // Try to find it first
+            if (window.find(searchText)) {
+                document.execCommand('insertText', false, replaceText);
+                isContentModified = true;
+            }
         }
-        searchIndex = 0;
-    } else {
-        searchIndex = (searchIndex + 1) % searchMatches.length;
     }
+});
 
-    if (searchMatches.length > 0) {
-        const matchIndex = searchMatches[searchIndex];
-        editor.focus();
-        editor.setSelectionRange(matchIndex, matchIndex + searchTerm.length);
-        statusElement.textContent = `Found match ${searchIndex + 1} of ${searchMatches.length}`;
-    } else {
-        statusElement.textContent = 'No matches found';
-    }
-}
+replaceAll.addEventListener('click', () => {
+    const searchText = findInput.value;
+    const replaceText = replaceInput.value;
 
-function replaceCurrent() {
-    if (searchMatches.length === 0 || searchIndex === -1) {
-        findNext();
+    if (!searchText) return;
+
+    // For contenteditable, we need a different approach
+    const text = editor.innerText;
+    if (!text.includes(searchText)) {
+        alert(`No occurrences of "${searchText}" found.`);
         return;
     }
 
-    const searchTerm = findText.value;
-    const replaceValue = replaceText.value;
-    const matchIndex = searchMatches[searchIndex];
-
-    // Update the text
-    editor.value =
-        editor.value.substring(0, matchIndex) +
-        replaceValue +
-        editor.value.substring(matchIndex + searchTerm.length);
-
-    // Reset search as content has changed
-    lastSearchText = editor.value;
-    const oldMatchIndex = searchIndex;
-    searchMatches = [];
-    searchIndex = -1;
-
-    // Find matches again
-    let startIndex = 0;
-    while (true) {
-        const index = editor.value.indexOf(searchTerm, startIndex);
-        if (index === -1) break;
-        searchMatches.push(index);
-        startIndex = index + 1;
-    }
-
-    // Try to keep the same position in results
-    if (searchMatches.length > 0) {
-        searchIndex = Math.min(oldMatchIndex, searchMatches.length - 1);
-        const newMatchIndex = searchMatches[searchIndex];
-        editor.focus();
-        editor.setSelectionRange(newMatchIndex, newMatchIndex + searchTerm.length);
-        statusElement.textContent = `Replaced and found match ${searchIndex + 1} of ${searchMatches.length}`;
-    } else {
-        statusElement.textContent = 'Replaced, no more matches';
-    }
-
-    // Mark file as modified
-    if (editor.value !== lastSavedContent) {
-        isFileSaved = false;
-        currentFileElement.textContent = `${currentFilename} *`;
-    }
-}
-
-function replaceAll() {
-    const searchTerm = findText.value;
-    if (!searchTerm) return;
-
-    const replaceValue = replaceText.value;
-    const originalContent = editor.value;
+    // Save scroll position
+    const scrollTop = editor.scrollTop;
 
     // Replace all occurrences
-    editor.value = editor.value.split(searchTerm).join(replaceValue);
+    let count = 0;
+    let currentText = editor.innerHTML;
 
-    // Count replacements
-    const replacements = (originalContent.match(new RegExp(escapeRegExp(searchTerm), 'g')) || []).length;
+    // Simple replace for plain text
+    // Note: This is a simplified approach and might not work perfectly for complex HTML content
+    const regex = new RegExp(escapeRegExp(searchText), 'g');
+    const newContent = text.replace(regex, replaceText);
 
-    // Reset search
-    searchMatches = [];
-    searchIndex = -1;
+    if (newContent !== text) {
+        editor.innerText = newContent;
+        count = (text.match(regex) || []).length;
+        isContentModified = true;
+        alert(`Replaced ${count} occurrence(s) of "${searchText}".`);
 
-    statusElement.textContent = `Replaced ${replacements} occurrences`;
-
-    // Mark file as modified
-    if (editor.value !== lastSavedContent) {
-        isFileSaved = false;
-        currentFileElement.textContent = `${currentFilename} *`;
+        // Restore scroll position
+        editor.scrollTop = scrollTop;
+    } else {
+        alert(`No occurrences of "${searchText}" found.`);
     }
-}
+});
 
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Save File Function
+// Save functionality
 function saveFile(filename) {
-    const content = editor.value;
+    // For contenteditable, get innerHTML if formatted, or innerText if plain
+    const content = editor.innerText || editor.textContent;
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
     a.click();
-
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     currentFilename = filename;
-    currentFileElement.textContent = filename;
-    lastSavedContent = content;
-    isFileSaved = true;
-    statusElement.textContent = 'Saved';
+    fileStatus.textContent = filename;
+    isContentModified = false;
 }
 
-// Check if save is needed before performing an action
-function checkSaveBeforeAction(action) {
-    if (!isFileSaved) {
-        if (confirm(`Do you want to save changes to ${currentFilename}?`)) {
-            // If "Untitled", show save dialog
-            if (currentFilename === 'Untitled.txt') {
-                saveModal.style.display = 'flex';
-                filenameInput.value = currentFilename;
+// Fullscreen functionality
+function toggleFullscreen() {
+    const container = document.querySelector('.container');
+    container.classList.toggle('fullscreen');
 
-                // Store action to be called after save
-                const originalSaveConfirmAction = document.getElementById('save-confirm').onclick;
-                document.getElementById('save-confirm').onclick = function () {
-                    const filename = filenameInput.value.trim();
-                    if (!filename) {
-                        alert('Please enter a filename.');
-                        return;
-                    }
-
-                    // Add .txt extension if not present
-                    const finalFilename = filename.toLowerCase().endsWith('.txt') ? filename : filename + '.txt';
-                    saveFile(finalFilename);
-                    saveModal.style.display = 'none';
-
-                    // Reset the onclick handler
-                    document.getElementById('save-confirm').onclick = originalSaveConfirmAction;
-
-                    // Perform the original action
-                    action();
-                };
-            } else {
-                saveFile(currentFilename);
-                action();
-            }
-        } else {
-            action();
+    if (container.classList.contains('fullscreen')) {
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
         }
     } else {
-        action();
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
     }
 }
 
-// Initialize
-document.addEventListener('DOMContentLoaded', function () {
-    updateCursorPosition();
-    editor.focus();
+// Register keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    // Ctrl+N: New File
+    if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        document.getElementById('new-file').click();
+    }
+    // Ctrl+O: Open File
+    else if (e.ctrlKey && e.key === 'o') {
+        e.preventDefault();
+        document.getElementById('open-file').click();
+    }
+    // Ctrl+S: Save File
+    else if (e.ctrlKey && e.key === 's' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('save-file').click();
+    }
+    // Ctrl+Shift+S: Save As
+    else if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        document.getElementById('save-as').click();
+    }
+    // Ctrl+Z: Undo
+    else if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        document.getElementById('undo').click();
+    }
+    // Ctrl+Y: Redo
+    else if (e.ctrlKey && e.key === 'y') {
+        e.preventDefault();
+        document.getElementById('redo').click();
+    }
+    // Ctrl+B: Bold
+    else if (e.ctrlKey && e.key === 'b') {
+        e.preventDefault();
+        document.getElementById('bold').click();
+    }
+    // Ctrl+I: Italic
+    else if (e.ctrlKey && e.key === 'i') {
+        e.preventDefault();
+        document.getElementById('italic').click();
+    }
+    // Ctrl+U: Underline
+    else if (e.ctrlKey && e.key === 'u') {
+        e.preventDefault();
+        document.getElementById('underline').click();
+    }
+    // Ctrl+F: Find
+    else if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        document.getElementById('find').click();
+    }
+    // Ctrl+H: Find and Replace
+    else if (e.ctrlKey && e.key === 'h') {
+        e.preventDefault();
+        document.getElementById('replace').click();
+    }
+    // Ctrl+T: Toggle Theme
+    else if (e.ctrlKey && e.key === 't') {
+        e.preventDefault();
+        document.getElementById('toggle-theme').click();
+    }
+    // F11: Toggle Fullscreen
+    else if (e.key === 'F11') {
+        e.preventDefault();
+        document.getElementById('toggle-fullscreen').click();
+    }
 });
 
-// Close dropdown menus when clicking on menu items
-document.querySelectorAll('.dropdown-content button').forEach(button => {
-    button.addEventListener('click', function () {
-        document.querySelectorAll('.menu-item').forEach(item => {
-            item.classList.remove('active');
-        });
-    });
+// Track cursor position for contenteditable
+editor.addEventListener('click', updatePositionStatus);
+editor.addEventListener('keyup', updatePositionStatus);
+
+function updatePositionStatus() {
+    // Using Selection and Range API for contenteditable elements
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(editor);
+        preCaretRange.setEnd(range.endContainer, range.endOffset);
+
+        // Get the text before cursor
+        const textBeforeCursor = preCaretRange.toString();
+        const lines = textBeforeCursor.split('\n');
+        const lineNumber = lines.length;
+        const columnNumber = lines[lines.length - 1].length + 1;
+
+        positionStatus.textContent = `Line: ${lineNumber}, Column: ${columnNumber}`;
+    }
+}
+
+// Track content changes for contenteditable
+editor.addEventListener('input', () => {
+    isContentModified = true;
+    // Add an asterisk to filename if modified
+    if (!fileStatus.textContent.startsWith('*')) {
+        fileStatus.textContent = '*' + fileStatus.textContent;
+    }
+});
+
+// Confirm before discarding changes
+function confirmDiscardChanges(callback) {
+    if (isContentModified) {
+        if (confirm('You have unsaved changes. Do you want to continue and discard them?')) {
+            callback();
+        }
+    } else {
+        callback();
+    }
+}
+
+// Text formatting function
+function applyFormatting(command) {
+    document.execCommand(command, false, null);
+    editor.focus();
+}
+
+// Helper function to close all menus
+function closeAllMenus() {
+    fileSubmenu.classList.remove('active');
+    editSubmenu.classList.remove('active');
+    viewSubmenu.classList.remove('active');
+}
+
+// Close dialogs on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        saveDialogOverlay.classList.remove('active');
+        findReplaceDialogOverlay.classList.remove('active');
+    }
+});
+
+// Prevent closing the browser tab without saving
+window.addEventListener('beforeunload', (e) => {
+    if (isContentModified) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+    }
 });
