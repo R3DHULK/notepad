@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notepad App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="header">
+        <div class="title">Notepad</div>
+        <div id="current-file">Untitled.txt</div>
+    </div>
+
+    <div class="menu-bar">
+        <div class="menu-item" id="file-menu">
+            File
+            <div class="dropdown-content">
+                <button id="new-file">New</button>
+                <button id="open-file">Open...</button>
+                <button id="save-file">Save</button>
+                <button id="save-as">Save As...</button>
+                <button id="exit">Exit</button>
+            </div>
+        </div>
+
+        <div class="menu-item" id="edit-menu">
+            Edit
+            <div class="dropdown-content">
+                <button id="cut">Cut</button>
+                <button id="copy">Copy</button>
+                <button id="paste">Paste</button>
+                <button id="find">Find...</button>
+                <button id="replace">Replace...</button>
+                <button id="select-all">Select All</button>
+            </div>
+        </div>
+
+        <div class="menu-item" id="view-menu">
+            View
+            <div class="dropdown-content">
+                <button id="fullscreen">Fullscreen</button>
+                <button id="word-wrap">Word Wrap</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="editor-container">
+        <textarea id="editor" spellcheck="false"></textarea>
+    </div>
+
+    <div class="status-bar">
+        <span id="status">Ready</span>
+        <span id="cursor-position">Ln 1, Col 1</span>
+    </div>
+
+    <!-- Save As Modal -->
+    <div class="modal" id="save-modal">
+        <div class="modal-content">
+            <div class="modal-title">Save As</div>
+            <input type="text" id="filename-input" placeholder="filename.txt">
+            <div class="modal-buttons">
+                <button class="cancel" id="save-cancel">Cancel</button>
+                <button class="confirm" id="save-confirm">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Open File Modal -->
+    <div class="modal" id="open-modal">
+        <div class="modal-content">
+            <div class="modal-title">Open File</div>
+            <input type="file" id="file-input" accept=".txt">
+            <div class="modal-buttons">
+                <button class="cancel" id="open-cancel">Cancel</button>
+                <button class="confirm" id="open-confirm">Open</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Replace Dialog -->
+    <div class="search-container" id="search-dialog">
+        <div class="search-row">
+            <label for="find-text">Find:</label>
+            <input type="text" id="find-text">
+        </div>
+        <div class="search-row" id="replace-row">
+            <label for="replace-text">Replace with:</label>
+            <input type="text" id="replace-text">
+        </div>
+        <div class="buttons">
+            <button id="find-next">Find Next</button>
+            <button id="replace-btn" class="hidden">Replace</button>
+            <button id="replace-all" class="hidden">Replace All</button>
+            <button class="close-btn" id="close-search">Close</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
