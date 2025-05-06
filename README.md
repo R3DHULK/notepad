@@ -44,7 +44,7 @@ No installation is required. Simply download the files and open `index.html` in 
 
 ```
 git clone https://github.com/r3dhulk/notepad.git
-cd modern-notepad
+cd notepad
 ```
 
 Then open `index.html` in your preferred browser.
